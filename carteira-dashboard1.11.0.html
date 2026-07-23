@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minha Carteira</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #09090b; --panel: #18181b; --border: #27272a; --border2: #3f3f46;
+    --text: #f4f4f5; --muted: #a1a1aa; --muted2: #71717a;
+    --amber: #fbbf24; --emerald: #34d399; --rose: #fb7185;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, monospace; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+  .tape-outer { border-bottom:1px solid var(--border); background:var(--panel); overflow:hidden; white-space:nowrap; padding:8px 0; }
+  .tape-track { display:inline-flex; animation: scroll 32s linear infinite; }
+  @keyframes scroll { from { transform: translateX(0);} to { transform: translateX(-50%);} }
+  @media (prefers-reduced-motion: reduce) { .tape-track { animation:none; } }
+  .tape-item { display:inline-flex; gap:6px; margin:0 16px; font-size:14px; }
+  .top-row { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  h1 { font-size: 25px; margin:0; letter-spacing:-0.01em; }
+  .subtitle { color:var(--muted); font-size:14px; margin:2px 0 0; }
+  .top-actions { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+  button { cursor:pointer; font: inherit; }
+  .btn { display:inline-flex; align-items:center; gap:6px; background:#27272a; color:var(--text); border:none; border-radius:6px; padding:7px 10px; font-size:16px; transition: background .15s; }
+  .btn:hover { background:#3f3f46; }
+  .btn-primary { background:var(--amber); color:#1c1917; font-weight:600; }
+  .btn-primary:hover { background:#fcd34d; }
+  .btn-market { width:100%; background:var(--panel); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:18px; padding:20px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .btn-market:hover { background:#1c1c1f; }
+
+  .market-overlay { position:fixed; inset:0; background:#09090b; display:none; flex-direction:column; z-index:60; }
+  .market-header { display:flex; align-items:center; justify-content:space-between; padding:16px; border-bottom:1px solid var(--border); }
+  .market-header h2 { margin:0; font-size:17px; }
+  .market-header button { background:none; border:none; color:var(--muted); font-size:18px; padding:4px 8px; }
+  .market-body { flex:1; overflow-y:auto; padding:8px 12px 24px; }
+  .market-section-title { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:16px 6px 8px; }
+  .market-row { display:flex; align-items:center; justify-content:space-between; padding:14px 14px; margin-bottom:8px; background:#151517; border-radius:14px; border:1px solid var(--border); }
+  .market-row .m-left { display:flex; flex-direction:column; }
+  .market-row .m-ticker { font-weight:700; font-size:15px; }
+  .market-row .m-name { font-size:12px; color:var(--muted2); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .market-row .m-right { display:flex; flex-direction:column; align-items:flex-end; }
+  .market-row .m-price { font-family:ui-monospace,monospace; font-size:15px; }
+  .market-badge { font-family:ui-monospace,monospace; font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; margin-top:5px; }
+  .custom-select { position:relative; flex:1; }
+  .custom-select-btn { width:100%; display:flex; justify-content:space-between; align-items:center; gap:6px; background:#27272a; color:var(--text); border:1px solid var(--border2); border-radius:6px; padding:7px 8px; font-size:12px; text-align:left; }
+  .custom-select-menu { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:50; background:#27272a; border:1px solid var(--border2); border-radius:6px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+  .custom-select-option { padding:10px 10px; font-size:12px; color:var(--text); }
+  .custom-select-option + .custom-select-option { border-top:1px solid var(--border); }
+  .custom-select-option.active { background:#3f3f46; color:var(--amber); }
+  .market-badge.gain { background:rgba(6,95,70,.35); color:var(--emerald); }
+  .market-badge.loss { background:rgba(159,18,57,.35); color:var(--rose); }
+  .market-badge.flat { background:rgba(63,63,70,.5); color:var(--muted); }
+  .market-empty { color:var(--muted2); font-size:13px; text-align:center; padding:24px 8px; }
+  .btn-ghost { background:none; color:var(--muted); padding:4px 2px; }
+  .btn-ghost:hover { color:var(--text); }
+  .msg { font-size:12px; border-radius:6px; padding:8px 12px; margin-bottom:12px; border:1px solid; text-align:center; }
+  .msg-ok { border-color:#065f46; background:rgba(6,95,70,.25); color:#6ee7b7; }
+  .msg-err { border-color:#9f1239; background:rgba(159,18,57,.25); color:#fda4af; }
+  .cards { display:grid; grid-template-columns: repeat(2,1fr); gap:12px; margin-bottom:20px; }
+  @media (min-width:800px) { .cards { grid-template-columns: repeat(4,1fr); } }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; }
+  .card .label { color:var(--muted); font-size:16px; display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .card .value { font-size:18px; font-weight:600; }
+  .gain { color: var(--emerald); } .loss { color: var(--rose); }
+  .charts { display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:20px; }
+  @media (min-width:760px) { .charts { grid-template-columns:1fr 1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; }
+  .panel h2 { font-size:16px; font-weight:500; color:#d4d4d8; margin:0 0 4px; }
+  .panel h2.center { text-align:center; margin-bottom:14px; }
+  .panel .hint { font-size:12px; color:var(--muted2); margin:0 0 10px; }
+  .chart-box { position:relative; width:100%; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  thead th { text-align:left; color:var(--muted); font-size:14px; text-transform:uppercase; letter-spacing:.03em; font-weight:400; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th.r, td.r { text-align:right; }
+  tbody td { padding:7px 10px; border-bottom:1px solid rgba(63,63,70,.5); white-space:nowrap; }
+  tbody tr:hover { background: rgba(63,63,70,.15); }
+  .ticker-cell { font-weight:600; color:#e4e4e7; }
+  .ticker-link { cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+  .ticker-link:hover { color:var(--amber); }
+  .ticker-link .chevron { color:var(--muted2); font-family: -apple-system, sans-serif; }
+
+  .detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,.65); display:none; align-items:flex-end; justify-content:center; z-index:50; }
+  .detail-card { background:#111113; width:100%; max-width:600px; border-top-left-radius:16px; border-top-right-radius:16px; padding:20px; max-height:85vh; overflow-y:auto; box-shadow:0 -4px 24px rgba(0,0,0,.5); }
+  .detail-drag { width:36px; height:4px; background:#3f3f46; border-radius:2px; margin:0 auto 16px; }
+  .detail-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .detail-header h3 { margin:0; font-size:22px; font-weight:700; }
+  .detail-header button { background:none; border:none; color:var(--muted); font-size:18px; padding:4px 8px; }
+  .detail-value-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:18px; }
+  .detail-value { font-size:26px; font-weight:700; font-family: ui-monospace, monospace; }
+  .detail-delta { font-size:16px; font-weight:600; font-family: ui-monospace, monospace; }
+  .detail-rows { border-top:1px solid var(--border); }
+  .detail-row { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); font-size:15px; }
+  .detail-row span:first-child { color:var(--muted); }
+  .detail-row span:last-child { font-family: ui-monospace, monospace; font-weight:500; }
+  .cell-input { width:78px; background:transparent; border:none; border-bottom:1px dashed var(--border2); color:var(--text); text-align:right; font: inherit; padding:2px 0; }
+  .cell-input.small { width:60px; }
+  .cell-input:focus { outline:none; border-color:var(--amber); }
+  .table-wrap { overflow-x:auto; }
+  .section { margin-bottom:20px; }
+  .form-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field span { font-size:11px; color:var(--muted); }
+  .field input, .field select { background:#27272a; border:1px solid var(--border2); border-radius:6px; padding:7px 8px; color:var(--text); font-size:13px; }
+  .field input:focus, .field select:focus { outline:none; border-color:var(--amber); }
+  .w-24 { width:96px; } .w-20 { width:80px; } .w-16 { width:64px; }
+  .err { color:var(--rose); font-size:12px; margin-top:8px; }
+  .history-toggle { width:100%; display:flex; justify-content:space-between; align-items:center; background:none; border:none; color:#d4d4d8; font-size:13px; font-weight:500; padding:12px 16px; }
+  .history-toggle:hover { background: rgba(63,63,70,.2); }
+  .footer-note { text-align:center; color:var(--muted2); font-size:12px; padding-top:8px; }
+</style>
+</head>
+<body>
+<div id="tape" class="tape-outer"><div class="tape-track mono" id="tapeTrack"></div></div>
+
+<div class="wrap">
+  <div class="top-row">
+    <div>
+      <h1>Minha Carteira</h1>
+      <p class="subtitle">Posição, custo médio e lucro/prejuízo por ativo</p>
+    </div>
+  </div>
+  <p style="text-align:center; font-size:12px; color:var(--muted); margin:0 0 16px;" id="saveStatus">Dados salvos neste dispositivo</p>
+
+  <div id="importMsg"></div>
+
+  <div class="panel section" style="padding:14px 16px;">
+    <div id="brapiConfigBox">
+      <h2 style="margin-bottom:2px;">Cotações via API brapi</h2>
+      <p class="hint">Cole seu token gratuito da brapi.dev (crie em brapi.dev, é grátis). Ela atualiza a cotação de todos os tickers da tabela "Posição atual" e da lista "Cotações do mercado", incluindo ações, ETFs, FIIs e BDRs. Os dados são de fechamento (com atraso), não em tempo real. A chamada passa por um proxy CORS público (a brapi também bloqueia chamadas diretas do navegador) — seu token trafega por esse serviço de terceiros.</p>
+      <div class="field" style="width:100%;">
+        <span>Token (brapi.dev)</span>
+        <input type="password" id="brapiToken" placeholder="seu token brapi">
+      </div>
+    </div>
+    <div style="display:flex; justify-content:center; align-items:center; gap:16px; margin-top:10px; flex-wrap:wrap;">
+      <button class="btn btn-primary" id="updateQuotesBtn">🔄 Atualizar cotações</button>
+      <button class="btn-ghost" id="toggleConfigBtn" type="button" style="font-size:12px;">⚙️ Alterar token</button>
+    </div>
+    <p class="hint" id="lastQuoteUpdate" style="margin-top:8px; text-align:center;"></p>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <div style="margin-bottom:20px;">
+    <button class="btn btn-market" id="marketBtn">📊 Cotações do mercado</button>
+  </div>
+
+  <div class="charts">
+    <div class="panel">
+      <h2 class="center">Alocação por valor atual</h2>
+      <div class="chart-box" id="pieChartBox" style="height:340px;">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Lucro/Prejuízo por ativo (%)</h2>
+      <div class="chart-box" id="barChartBox" style="height:220px;">
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel section" style="padding:0;">
+    <div style="padding:14px 16px; border-bottom:1px solid var(--border);">
+      <h2>Posição atual</h2>
+      <p class="hint">Cotação é editável — clique no valor, digite e saia do campo para atualizar. Toque no ticker para ver todos os detalhes.</p>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+        <span style="font-size:12px; color:var(--muted); white-space:nowrap;">Ordenar por</span>
+        <div class="custom-select" id="sortBySelect">
+          <button type="button" class="custom-select-btn" id="sortBySelectBtn">
+            <span id="sortBySelectLabel">Rentabilidade (maior p/ menor)</span>
+            <span style="opacity:.6;">▾</span>
+          </button>
+          <div class="custom-select-menu" id="sortBySelectMenu" style="display:none;">
+            <div class="custom-select-option active" data-value="pnlPct">Rentabilidade (maior p/ menor)</div>
+            <div class="custom-select-option" data-value="dayChangeDesc">Variação do dia (maiores altas primeiro)</div>
+            <div class="custom-select-option" data-value="dayChangeAsc">Variação do dia (maiores baixas primeiro)</div>
+            <div class="custom-select-option" data-value="currentValue">Valor atual (maior p/ menor)</div>
+            <div class="custom-select-option" data-value="ticker">Ticker (A–Z)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="mono">
+        <thead><tr>
+          <th>Ticker</th><th class="r">Qtd.</th><th class="r">PM (R$)</th><th class="r">Cotação (R$)</th>
+        </tr></thead>
+        <tbody id="posTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel section">
+    <h2 style="margin-bottom:10px;">Registrar movimentação</h2>
+    <form class="form-row" id="movForm">
+      <div class="field"><span>Data</span><input type="date" id="fDate" required></div>
+      <div class="field"><span>Tipo</span>
+        <select id="fTipo"><option>Compra</option><option>Venda</option></select>
+      </div>
+      <div class="field"><span>Ticker</span><input type="text" id="fTicker" class="w-24" placeholder="PETR4" style="text-transform:uppercase;"></div>
+      <div class="field"><span>Qtd.</span><input type="text" id="fQtd" class="w-20" placeholder="100" inputmode="decimal"></div>
+      <div class="field"><span>Preço (R$)</span><input type="text" id="fPreco" class="w-24" placeholder="32.50" inputmode="decimal"></div>
+      <button type="submit" class="btn btn-primary">+ Adicionar</button>
+    </form>
+    <p class="err" id="formErr"></p>
+  </div>
+
+  <div class="panel section" style="padding:0;">
+    <button class="history-toggle" id="historyToggle"><span>Histórico de movimentações (<span id="movCount">0</span>)</span> <span id="historyChevron">▾</span></button>
+    <div class="table-wrap" id="historyWrap" style="display:none; border-top:1px solid var(--border);">
+      <table class="mono">
+        <thead><tr>
+          <th>Data</th><th>Tipo</th><th>Ticker</th><th class="r">Qtd.</th><th class="r">Preço (R$)</th><th class="r">Total (R$)</th><th></th>
+        </tr></thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:center; gap:16px; margin:24px 0 8px; flex-wrap:wrap;">
+    <button class="btn-ghost" id="exportBackupBtn" type="button" style="font-size:12px;">💾 Exportar backup</button>
+    <button class="btn-ghost" id="importBackupBtn" type="button" style="font-size:12px;">📥 Restaurar backup</button>
+    <input type="file" id="backupFileInput" accept="application/json" style="display:none">
+  </div>
+  <div id="backupMsg"></div>
+
+  <p class="footer-note">Cole seu token da brapi.dev e clique em "Atualizar cotações" para puxar os preços de fechamento direto da API. Este arquivo roda 100% no seu navegador — nada é enviado para nenhum servidor além da própria brapi, para ler as cotações.</p>
+</div>
+
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-card">
+    <div class="detail-drag"></div>
+    <div class="detail-header">
+      <h3 id="detailTicker"></h3>
+      <button id="detailClose">✕</button>
+    </div>
+    <div class="detail-value-row">
+      <span class="detail-value" id="detailValue"></span>
+      <span class="detail-delta" id="detailDelta"></span>
+    </div>
+    <div class="detail-rows" id="detailRows"></div>
+  </div>
+</div>
+
+<div class="market-overlay" id="marketOverlay">
+  <div class="market-header">
+    <div>
+      <h2>Cotações do mercado</h2>
+      <span style="font-size:11px; color:var(--muted2);">Variação % desde a última sincronização</span>
+    </div>
+    <button id="marketClose">✕</button>
+  </div>
+  <div class="market-body" id="marketBody"></div>
+</div>
+
+<script>
+const STORAGE_KEY = "carteira-dashboard-v1";
+const PIE_COLORS = ["#34d399","#fbbf24","#38bdf8","#f472b6","#a78bfa","#fb923c","#4ade80","#f87171","#22d3ee","#c084fc","#facc15","#818cf8","#2dd4bf","#e879f9"];
+
+const SEED_MOVEMENTS = [
+  {id:"s1",date:"Inicial",tipo:"Compra",ticker:"OIBR3",qtd:599,preco:9.30},
+  {id:"s2",date:"Inicial",tipo:"Compra",ticker:"BHIA3",qtd:60,preco:45.60},
+  {id:"s3",date:"Inicial",tipo:"Compra",ticker:"TORD11",qtd:132,preco:19.26},
+  {id:"s4",date:"Inicial",tipo:"Compra",ticker:"AMOB3",qtd:92,preco:25.16},
+  {id:"s5",date:"Inicial",tipo:"Compra",ticker:"HAPV3",qtd:200,preco:20.84},
+  {id:"s6",date:"Inicial",tipo:"Compra",ticker:"BMGB4",qtd:500,preco:2.79},
+  {id:"s7",date:"Inicial",tipo:"Compra",ticker:"MGLU3",qtd:243,preco:13.74},
+  {id:"s8",date:"Inicial",tipo:"Compra",ticker:"ETER3",qtd:365,preco:5.58},
+  {id:"s9",date:"Inicial",tipo:"Compra",ticker:"COGN3",qtd:1000,preco:2.9641},
+  {id:"s10",date:"Inicial",tipo:"Compra",ticker:"RAIZ4",qtd:4200,preco:0.9770},
+  {id:"s11",date:"Inicial",tipo:"Compra",ticker:"MLAS3",qtd:5000,preco:1.31},
+  {id:"s12",date:"Inicial",tipo:"Compra",ticker:"IRBR3",qtd:100,preco:45.91},
+  {id:"s13",date:"Inicial",tipo:"Compra",ticker:"BRST3",qtd:1000,preco:2.68},
+  {id:"s14",date:"Inicial",tipo:"Compra",ticker:"BOVA11",qtd:1,preco:166.37},
+];
+const SEED_QUOTES = {OIBR3:0.12,BHIA3:1.04,TORD11:1.15,AMOB3:12.67,HAPV3:10.70,BMGB4:5.30,MGLU3:4.94,ETER3:3.76,COGN3:2.31,RAIZ4:0.32,MLAS3:1.70,IRBR3:56.03,BRST3:2.85,BOVA11:173.52};
+const SEED_VPAS = {OIBR3:null,BHIA3:3.32,TORD11:36.72,AMOB3:null,HAPV3:95.80,BMGB4:7.68,MGLU3:14.53,ETER3:13.45,COGN3:6.59,RAIZ4:-0.80,MLAS3:3.76,IRBR3:64.94,BRST3:3.56,BOVA11:null};
+
+let state = { movements: SEED_MOVEMENTS, quotes: {...SEED_QUOTES}, vpas: {...SEED_VPAS}, market: [], dayChange: {} };
+let showHistory = false;
+let pieChart, barChart;
+
+function money(v){ return (v??0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}); }
+function pctStr(v){ return `${v>=0?"+":""}${(v*100).toFixed(2)}%`; }
+function numStr(v,d=2){ return (v??0).toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function toNum(s){ if(s===""||s==null) return NaN; return parseFloat(String(s).replace(",",".")); }
+
+const normalize = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+function loadState(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data.movements) state.movements = data.movements;
+      if (data.quotes) state.quotes = data.quotes;
+      if (data.vpas) state.vpas = data.vpas;
+      if (data.market) state.market = data.market;
+      if (data.dayChange) state.dayChange = data.dayChange;
+    }
+  } catch(e) { console.warn("Sem dados salvos ainda", e); }
+}
+function saveState(){
+  const el = document.getElementById("saveStatus");
+  el.textContent = "salvando...";
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    el.textContent = "salvo";
+    setTimeout(()=>{ el.textContent = "dados salvos neste dispositivo"; }, 1200);
+  } catch(e) {
+    el.textContent = "erro ao salvar";
+    console.error(e);
+  }
+}
+
+// Exporta um arquivo .json com todo o estado atual (movimentações, cotações,
+// VPA e lista de mercado) para a pasta de Downloads do dispositivo.
+function exportBackup(){
+  const msgEl = document.getElementById("backupMsg");
+  try {
+    const payload = { exportedAt: new Date().toISOString(), ...state };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0,10);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `carteira-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    msgEl.innerHTML = `<div class="msg msg-ok">Backup gerado (carteira-backup-${stamp}.json). Confira a pasta Downloads do seu celular.</div>`;
+  } catch(e) {
+    msgEl.innerHTML = `<div class="msg msg-err">Não consegui gerar o backup: ${e.message}</div>`;
+  }
+}
+
+// Restaura o estado a partir de um arquivo .json exportado anteriormente.
+function importBackup(file){
+  const msgEl = document.getElementById("backupMsg");
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      if (!data || !Array.isArray(data.movements)) throw new Error("Arquivo não reconhecido como backup deste dashboard.");
+      state.movements = data.movements || [];
+      state.quotes = data.quotes || {};
+      state.vpas = data.vpas || {};
+      state.market = data.market || [];
+      state.dayChange = data.dayChange || {};
+      saveState(); render();
+      msgEl.innerHTML = `<div class="msg msg-ok">Backup restaurado com sucesso.</div>`;
+    } catch(e) {
+      msgEl.innerHTML = `<div class="msg msg-err">Não consegui restaurar: ${e.message}</div>`;
+    }
+  };
+  reader.onerror = () => {
+    msgEl.innerHTML = `<div class="msg msg-err">Erro ao ler o arquivo selecionado.</div>`;
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById("exportBackupBtn").addEventListener("click", exportBackup);
+document.getElementById("importBackupBtn").addEventListener("click", () => document.getElementById("backupFileInput").click());
+document.getElementById("backupFileInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) importBackup(file);
+  e.target.value = "";
+});
+
+function computePositions(movements){
+  const byTicker = {};
+  for (const m of movements) {
+    if (!byTicker[m.ticker]) byTicker[m.ticker] = {qty:0, avgPrice:0, costTotal:0};
+    const pos = byTicker[m.ticker];
+    if (m.tipo === "Compra") {
+      const newQty = pos.qty + m.qtd;
+      pos.costTotal += m.qtd * m.preco;
+      pos.avgPrice = newQty > 0 ? pos.costTotal / newQty : 0;
+      pos.qty = newQty;
+    } else {
+      pos.qty -= m.qtd;
+      if (pos.qty <= 0) { pos.qty=0; pos.avgPrice=0; pos.costTotal=0; }
+      else { pos.costTotal = pos.avgPrice * pos.qty; }
+    }
+  }
+  return byTicker;
+}
+
+function getRows(){
+  const positions = computePositions(state.movements);
+  const rows = Object.entries(positions)
+    .filter(([,p]) => p.qty > 0)
+    .map(([ticker,p]) => {
+      const quote = state.quotes[ticker] ?? 0;
+      const currentValue = quote * p.qty;
+      const pnl = currentValue - p.costTotal;
+      const pnlPct = p.costTotal > 0 ? pnl / p.costTotal : 0;
+      const vpa = state.vpas[ticker];
+      const pvpa = vpa ? quote / vpa : null;
+      const dayChange = state.dayChange[ticker];
+      return {ticker, ...p, quote, currentValue, pnl, pnlPct, vpa, pvpa, dayChange};
+    })
+    .sort((a,b) => b.pnlPct - a.pnlPct);
+  return {positions, rows};
+}
+
+function openDetail(ticker){
+  const { rows } = getRows();
+  const r = rows.find(x => x.ticker === ticker);
+  if (!r) return;
+
+  document.getElementById("detailTicker").textContent = r.ticker;
+  document.getElementById("detailValue").textContent = money(r.currentValue);
+  const deltaEl = document.getElementById("detailDelta");
+  deltaEl.textContent = `${r.pnl >= 0 ? "↑" : "↓"} ${money(Math.abs(r.pnl))}`;
+  deltaEl.className = "detail-delta " + (r.pnl >= 0 ? "gain" : "loss");
+
+  document.getElementById("detailRows").innerHTML = `
+    <div class="detail-row"><span>Quantidade</span><span>${numStr(r.qty,0)}</span></div>
+    <div class="detail-row"><span>Preço Médio</span><span>${money(r.avgPrice)}</span></div>
+    <div class="detail-row"><span>Cotação</span><span>${money(r.quote)}</span></div>
+    <div class="detail-row"><span>VPA</span><span><input class="cell-input" id="detailVpaInput" data-vpa="${r.ticker}" value="${r.vpa!=null?numStr(r.vpa):''}" placeholder="—"></span></div>
+    <div class="detail-row"><span>P/VPA</span><span>${r.pvpa!=null?numStr(r.pvpa)+'x':'—'}</span></div>
+    <div class="detail-row"><span>Custo Total</span><span>${money(r.costTotal)}</span></div>
+    <div class="detail-row"><span>Rentabilidade</span><span class="${r.pnlPct>=0?'gain':'loss'}">${pctStr(r.pnlPct)}</span></div>
+  `;
+
+  document.getElementById("detailVpaInput").addEventListener("blur", e => {
+    const t = e.target.getAttribute("data-vpa");
+    const raw = e.target.value;
+    const v = toNum(raw);
+    state.vpas[t] = raw === "" ? null : (isNaN(v) ? null : v);
+    saveState(); render();
+  });
+
+  document.getElementById("detailOverlay").style.display = "flex";
+}
+
+function closeDetail(){
+  document.getElementById("detailOverlay").style.display = "none";
+}
+
+document.getElementById("detailClose").addEventListener("click", closeDetail);
+document.getElementById("detailOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "detailOverlay") closeDetail();
+});
+
+function marketRowHtml(m){
+  const hasVar = m.variacao != null;
+  const isFlat = hasVar && m.variacao === 0;
+  const badgeClass = !hasVar ? "" : (isFlat ? "flat" : (m.variacao >= 0 ? "gain" : "loss"));
+  const arrow = !hasVar ? "" : (isFlat ? "•" : (m.variacao >= 0 ? "↑" : "↓"));
+  return `
+    <div class="market-row">
+      <div class="m-left">
+        <span class="m-ticker">${m.ticker}</span>
+        ${m.nome ? `<span class="m-name">${m.nome}</span>` : ""}
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="m-right">
+          <span class="m-price">${m.preco!=null?money(m.preco):'—'}</span>
+          ${hasVar ? `<span class="market-badge ${badgeClass}">${arrow} ${Math.abs(m.variacao).toFixed(2)}%</span>` : ""}
+        </div>
+        <button class="btn-ghost" data-market-remove="${m.ticker}">🗑</button>
+      </div>
+    </div>`;
+}
+
+function openMarket(){
+  const { positions } = getRows();
+  const owned = new Set(Object.keys(positions).filter(t => positions[t].qty > 0));
+  const minhaCarteira = state.market.filter(m => owned.has(m.ticker));
+  const naoCarteira = state.market.filter(m => !owned.has(m.ticker));
+  const recuperacao = naoCarteira.filter(m => normalize(m.categoria).includes("recuper"));
+  const observacao = naoCarteira.filter(m => !normalize(m.categoria).includes("recuper"));
+
+  const formHtml = `
+    <div style="padding:12px 6px 16px; border-bottom:1px solid var(--border); margin-bottom:12px;">
+      <div class="form-row" style="align-items:flex-end;">
+        <div class="field"><span>Ticker</span><input type="text" id="mktTicker" class="w-24" placeholder="PETR4" style="text-transform:uppercase;"></div>
+        <div class="field"><span>Nome (opcional)</span><input type="text" id="mktNome" placeholder="Nome da empresa" style="min-width:140px;"></div>
+        <div class="field"><span>Categoria</span>
+          <select id="mktCategoria">
+            <option value="">Observação</option>
+            <option value="Recuperação">Recuperação</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="mktAddBtn" type="button">+ Adicionar</button>
+      </div>
+      <p class="err" id="mktErr"></p>
+    </div>`;
+
+  let listHtml = "";
+  if (state.market.length === 0) {
+    listHtml = `<div class="market-empty">Nenhum ticker adicionado ainda. Use o formulário acima para incluir ativos em observação ou recuperação, depois clique em "Atualizar cotações" no topo do dashboard.</div>`;
+  } else {
+    listHtml += `<div class="market-section-title">Minha carteira</div>`;
+    listHtml += minhaCarteira.length ? minhaCarteira.map(marketRowHtml).join("") : `<div class="market-empty">Nenhum ativo da carteira nesta lista.</div>`;
+    listHtml += `<div class="market-section-title">Potencial de Turnaround</div>`;
+    listHtml += observacao.length ? observacao.map(marketRowHtml).join("") : `<div class="market-empty">Nenhum ativo em observação.</div>`;
+    listHtml += `<div class="market-section-title">Recuperação</div>`;
+    listHtml += recuperacao.length ? recuperacao.map(marketRowHtml).join("") : `<div class="market-empty">Nenhum ativo marcado como Recuperação.</div>`;
+  }
+
+  document.getElementById("marketBody").innerHTML = formHtml + listHtml;
+  document.getElementById("marketOverlay").style.display = "flex";
+
+  document.getElementById("mktAddBtn").addEventListener("click", () => {
+    const errEl = document.getElementById("mktErr");
+    errEl.textContent = "";
+    const ticker = document.getElementById("mktTicker").value.trim().toUpperCase();
+    const nome = document.getElementById("mktNome").value.trim();
+    const categoria = document.getElementById("mktCategoria").value;
+    if (!ticker) { errEl.textContent = "Informe o ticker."; return; }
+    if (state.market.some(m => m.ticker === ticker)) { errEl.textContent = "Este ticker já está na lista."; return; }
+    state.market.push({ ticker, nome, categoria, preco: null, variacao: null });
+    saveState();
+    openMarket();
+  });
+
+  document.querySelectorAll("[data-market-remove]").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const t = e.currentTarget.getAttribute("data-market-remove");
+      state.market = state.market.filter(m => m.ticker !== t);
+      saveState();
+      openMarket();
+    });
+  });
+}
+function closeMarket(){
+  document.getElementById("marketOverlay").style.display = "none";
+}
+document.getElementById("marketBtn").addEventListener("click", openMarket);
+document.getElementById("marketClose").addEventListener("click", closeMarket);
+
+let posSortBy = "pnlPct";
+document.getElementById("sortBySelectBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById("sortBySelectMenu");
+  menu.style.display = (menu.style.display === "none") ? "block" : "none";
+});
+document.querySelectorAll(".custom-select-option").forEach(opt => {
+  opt.addEventListener("click", () => {
+    posSortBy = opt.getAttribute("data-value");
+    document.getElementById("sortBySelectLabel").textContent = opt.textContent;
+    document.querySelectorAll(".custom-select-option").forEach(o => o.classList.toggle("active", o === opt));
+    document.getElementById("sortBySelectMenu").style.display = "none";
+    render();
+  });
+});
+document.addEventListener("click", (e) => {
+  const wrap = document.getElementById("sortBySelect");
+  if (wrap && !wrap.contains(e.target)) document.getElementById("sortBySelectMenu").style.display = "none";
+});
+
+function sortPosRows(rows, sortBy){
+  const arr = [...rows];
+  switch (sortBy) {
+    case "dayChangeDesc":
+      arr.sort((a,b) => (b.dayChange ?? -Infinity) - (a.dayChange ?? -Infinity));
+      break;
+    case "dayChangeAsc":
+      arr.sort((a,b) => (a.dayChange ?? Infinity) - (b.dayChange ?? Infinity));
+      break;
+    case "currentValue":
+      arr.sort((a,b) => b.currentValue - a.currentValue);
+      break;
+    case "ticker":
+      arr.sort((a,b) => a.ticker.localeCompare(b.ticker));
+      break;
+    case "pnlPct":
+    default:
+      arr.sort((a,b) => b.pnlPct - a.pnlPct);
+  }
+  return arr;
+}
+
+function render(){
+  const {positions, rows} = getRows();
+
+  // ticker tape
+  const tape = document.getElementById("tapeTrack");
+  const tapeItems = [...rows, ...rows].map(r =>
+    `<span class="tape-item"><span class="ticker-cell">${r.ticker}</span><span class="${r.pnlPct>=0?'gain':'loss'}">${pctStr(r.pnlPct)}</span></span>`
+  ).join("");
+  tape.innerHTML = tapeItems || `<span class="tape-item">Sem posições</span>`;
+
+  // totals
+  const invested = rows.reduce((s,r)=>s+r.costTotal,0);
+  const current = rows.reduce((s,r)=>s+r.currentValue,0);
+  const pnl = current - invested;
+  const pnlPct = invested > 0 ? pnl/invested : 0;
+
+  document.getElementById("cards").innerHTML = `
+    <div class="card"><div class="label">💰 Investido</div><div class="value">${money(invested)}</div></div>
+    <div class="card"><div class="label">💼 Valor atual</div><div class="value">${money(current)}</div></div>
+    <div class="card"><div class="label">${pnl>=0?'🤑':'🔻'} Lucro/Prejuízo</div><div class="value ${pnl>=0?'gain':'loss'}">${money(pnl)}</div></div>
+    <div class="card"><div class="label">${pnl>=0?'🤑':'🔻'} Rentabilidade</div><div class="value ${pnlPct>=0?'gain':'loss'}">${pctStr(pnlPct)}</div></div>
+  `;
+
+  // position table
+  document.getElementById("posTableBody").innerHTML = sortPosRows(rows, posSortBy).map(r => {
+    const hasChange = r.dayChange != null;
+    const isFlat = hasChange && r.dayChange === 0;
+    const changeClass = !hasChange ? "" : (isFlat ? "flat" : (r.dayChange >= 0 ? "gain" : "loss"));
+    const arrow = !hasChange ? "" : (isFlat ? "•" : (r.dayChange >= 0 ? "↑" : "↓"));
+    return `
+    <tr>
+      <td class="ticker-cell"><span class="ticker-link" onclick="openDetail('${r.ticker}')">${r.ticker} <span class="chevron">›</span></span></td>
+      <td class="r">${numStr(r.qty,0)}</td>
+      <td class="r">${numStr(r.avgPrice)}</td>
+      <td class="r">
+        <input class="cell-input" data-quote="${r.ticker}" value="${numStr(r.quote)}">
+        ${hasChange ? `<div class="market-badge ${changeClass}" style="margin-top:2px;">${arrow} ${Math.abs(r.dayChange).toFixed(2)}%</div>` : ""}
+      </td>
+    </tr>
+  `;
+  }).join("") || `<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:24px;">Nenhum ativo em carteira. Registre uma movimentação abaixo.</td></tr>`;
+
+  document.querySelectorAll("[data-quote]").forEach(inp => {
+    inp.addEventListener("blur", e => {
+      const t = e.target.getAttribute("data-quote");
+      const v = toNum(e.target.value);
+      state.quotes[t] = isNaN(v) ? 0 : v;
+      delete state.dayChange[t]; // preço editado à mão: a variação salva fica desatualizada
+      saveState(); render();
+    });
+  });
+
+  // history
+  document.getElementById("movCount").textContent = state.movements.length;
+  document.getElementById("historyBody").innerHTML = [...state.movements].reverse().map(m => `
+    <tr>
+      <td>${m.date}</td>
+      <td class="${m.tipo==='Compra'?'gain':'loss'}">${m.tipo}</td>
+      <td class="ticker-cell">${m.ticker}</td>
+      <td class="r">${numStr(m.qtd,0)}</td>
+      <td class="r">${numStr(m.preco,4)}</td>
+      <td class="r">${money(m.qtd*m.preco)}</td>
+      <td class="r"><button class="btn-ghost" data-remove="${m.id}">🗑</button></td>
+    </tr>
+  `).join("");
+  document.querySelectorAll("[data-remove]").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const id = e.target.getAttribute("data-remove");
+      state.movements = state.movements.filter(m => m.id !== id);
+      saveState(); render();
+    });
+  });
+
+  renderCharts(rows);
+}
+
+function renderCharts(rows){
+  const pieCtx = document.getElementById("pieChart");
+  const barCtx = document.getElementById("barChart");
+  if (pieChart) pieChart.destroy();
+  if (barChart) barChart.destroy();
+
+  pieChart = new Chart(pieCtx, {
+    type: "doughnut",
+    data: {
+      labels: rows.map(r=>r.ticker),
+      datasets: [{ data: rows.map(r=>r.currentValue), backgroundColor: rows.map((_,i)=>PIE_COLORS[i%PIE_COLORS.length]), borderWidth:0 }]
+    },
+    options: {
+      plugins: {
+        legend: {
+          position: "bottom",
+          align: "center",
+          labels: { color:"#a1a1aa", boxWidth:10, font:{size:15}, padding:12 }
+        },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${money(ctx.raw)}` } }
+      },
+      maintainAspectRatio: false
+    }
+  });
+
+  // altura dinâmica: espaço fixo pro cabeçalho + eixo, mais um pedaço por ativo, pra caber todos sem cortar
+  const sorted = [...rows].sort((a,b)=>a.pnlPct-b.pnlPct);
+  const barBoxHeight = Math.max(220, sorted.length * 32 + 40);
+  document.getElementById("barChartBox").style.height = barBoxHeight + "px";
+
+  barChart = new Chart(barCtx, {
+    type: "bar",
+    data: {
+      labels: sorted.map(r=>r.ticker),
+      datasets: [{ data: sorted.map(r=>r.pnlPct*100),
+        backgroundColor: sorted.map(r=>r.pnlPct>=0?"#34d399":"#fb7185"), borderRadius:4 }]
+    },
+    options: {
+      indexAxis: "y",
+      plugins: { legend:{display:false}, tooltip:{ callbacks: { label:(ctx)=>` ${ctx.raw.toFixed(2)}%` } } },
+      scales: {
+        x: { ticks:{ color:"#a1a1aa", callback:(v)=>v+"%" }, grid:{ color:"#27272a" } },
+        y: { ticks:{ color:"#d4d4d8", font:{size:14} }, grid:{ display:false } }
+      },
+      maintainAspectRatio: false
+    }
+  });
+}
+
+// Add movement
+document.getElementById("movForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("formErr");
+  errEl.textContent = "";
+  const ticker = document.getElementById("fTicker").value.trim().toUpperCase();
+  const tipo = document.getElementById("fTipo").value;
+  const date = document.getElementById("fDate").value || "Inicial";
+  const qtd = toNum(document.getElementById("fQtd").value);
+  const preco = toNum(document.getElementById("fPreco").value);
+  if (!ticker) { errEl.textContent = "Informe o ticker."; return; }
+  if (!qtd || qtd <= 0) { errEl.textContent = "Quantidade inválida."; return; }
+  if (!preco || preco <= 0) { errEl.textContent = "Preço inválido."; return; }
+  if (tipo === "Venda") {
+    const pos = computePositions(state.movements)[ticker];
+    const posQty = pos ? pos.qty : 0;
+    if (qtd > posQty) { errEl.textContent = `Você só tem ${posQty} ${ticker} em carteira.`; return; }
+  }
+  state.movements.push({ id:`m-${Date.now()}`, date, tipo, ticker, qtd, preco });
+  if (!(ticker in state.quotes)) state.quotes[ticker] = preco;
+  document.getElementById("movForm").reset();
+  saveState(); render();
+});
+
+// History toggle
+document.getElementById("historyToggle").addEventListener("click", () => {
+  showHistory = !showHistory;
+  document.getElementById("historyWrap").style.display = showHistory ? "block" : "none";
+  document.getElementById("historyChevron").textContent = showHistory ? "▴" : "▾";
+});
+
+
+
+// Integração com a API brapi.dev — cotações de ações, ETFs, FIIs e BDRs,
+// com atraso (fechamento). Na prática a brapi também bloqueia fetch direto
+// do navegador, então a chamada passa pelo mesmo proxy CORS público que já
+// funcionou neste domínio (github.io) com a bolsai.
+const BRAPI_TOKEN_STORAGE = "carteira-dashboard-brapi-token";
+const BRAPI_BASE = "https://brapi.dev/api";
+const CORS_PROXY = "https://proxy.corsfix.com/?";
+
+function getApiKey(){ return localStorage.getItem(BRAPI_TOKEN_STORAGE) || ""; }
+
+function updateBrapiConfigVisibility(){
+  document.getElementById("brapiConfigBox").style.display = getApiKey() ? "none" : "block";
+}
+
+document.getElementById("brapiToken").addEventListener("blur", e => {
+  const v = e.target.value.trim();
+  localStorage.setItem(BRAPI_TOKEN_STORAGE, v);
+  if (v) updateBrapiConfigVisibility(); // token preenchido: recolhe a caixa
+});
+
+document.getElementById("toggleConfigBtn").addEventListener("click", () => {
+  const box = document.getElementById("brapiConfigBox");
+  box.style.display = (box.style.display === "none") ? "block" : "none";
+});
+
+// Busca a cotação de um único ticker. O plano gratuito da brapi só aceita
+// 1 ativo por requisição. O VPA não é buscado automaticamente (o plano
+// gratuito não libera o módulo de indicadores) — fica só como campo manual.
+async function fetchBrapiQuote(ticker, token){
+  const targetUrl = `${BRAPI_BASE}/quote/${encodeURIComponent(ticker)}?token=${encodeURIComponent(token)}`;
+  const url = CORS_PROXY + targetUrl;
+  let res, rawText;
+  try {
+    res = await fetch(url);
+  } catch(e) {
+    const err = new Error("NETWORK");
+    err.detail = e.message || String(e);
+    throw err;
+  }
+  try { rawText = await res.text(); } catch(e) { rawText = ""; }
+  let data = null;
+  try { data = JSON.parse(rawText); } catch(e) { /* resposta não era JSON */ }
+
+  if (res.status === 401 || res.status === 403) {
+    const err = new Error("UNAUTHORIZED");
+    err.detail = `HTTP ${res.status} — ${rawText.slice(0,200)}`;
+    throw err;
+  }
+  if (res.status === 429) throw new Error("RATE_LIMIT");
+  if (!res.ok) return null; // ticker não reconhecido/erro pontual — trata como não encontrado
+
+  const result = (data?.results || []).find(r => r && r.symbol && String(r.symbol).toUpperCase() === ticker.toUpperCase());
+  if (result && result.regularMarketPrice != null) {
+    const changePct = result.regularMarketChangePercent != null ? result.regularMarketChangePercent : null;
+    return { price: result.regularMarketPrice, changePct };
+  }
+  return null;
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function updateAllQuotes(){
+  const msgEl = document.getElementById("importMsg");
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    msgEl.innerHTML = `<div class="msg msg-err">Cole seu token da brapi.dev no campo acima antes de atualizar.</div>`;
+    return;
+  }
+  const btn = document.getElementById("updateQuotesBtn");
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = "Atualizando...";
+
+  const { positions } = getRows();
+  const ownedTickers = Object.keys(positions).filter(t => positions[t].qty > 0);
+  const marketTickers = state.market.map(m => m.ticker);
+  const allTickers = [...new Set([...ownedTickers, ...marketTickers])];
+
+  const now = new Date();
+
+  if (allTickers.length === 0) {
+    msgEl.innerHTML = `<div class="msg msg-err">Nenhum ticker para atualizar ainda. Registre uma movimentação ou adicione um ticker em "Cotações do mercado".</div>`;
+    btn.disabled = false; btn.textContent = originalLabel;
+    return;
+  }
+
+  let ok = 0;
+  const failed = [];
+  try {
+    for (let i = 0; i < allTickers.length; i++) {
+      const ticker = allTickers[i];
+      const result = await fetchBrapiQuote(ticker, apiKey);
+      if (result != null) {
+        ok++;
+        const price = result.price;
+        if (ownedTickers.includes(ticker)) {
+          state.quotes[ticker] = price;
+          if (result.changePct != null) state.dayChange[ticker] = result.changePct;
+        }
+        const idx = state.market.findIndex(m => m.ticker === ticker);
+        if (idx >= 0) {
+          const prevPreco = state.market[idx].preco;
+          const variacao = (prevPreco != null && prevPreco !== 0) ? ((price - prevPreco) / prevPreco) * 100 : null;
+          state.market[idx].preco = price;
+          state.market[idx].variacao = variacao;
+        }
+      } else {
+        failed.push(ticker);
+      }
+      if (i < allTickers.length - 1) await sleep(150); // evita bater em limite por segundo
+    }
+    document.getElementById("lastQuoteUpdate").textContent = `Última atualização: ${now.toLocaleString("pt-BR")}`;
+    let msg = `Cotações atualizadas às ${now.toLocaleTimeString("pt-BR")} (${ok}/${allTickers.length}).`;
+    if (failed.length) msg += ` Não encontrados na brapi: ${failed.join(", ")}.`;
+    msgEl.innerHTML = `<div class="msg ${ok > 0 ? "msg-ok" : "msg-err"}">${msg}</div>`;
+    saveState(); render();
+  } catch(e) {
+    document.getElementById("lastQuoteUpdate").textContent = `Última atualização: ${now.toLocaleString("pt-BR")}`;
+    const detail = e.detail ? ` Detalhe: ${e.detail}` : "";
+    if (e.message === "UNAUTHORIZED") {
+      msgEl.innerHTML = `<div class="msg msg-err">Token rejeitado (401/403). Confira se copiou o token completo em brapi.dev.${detail}</div>`;
+    } else if (e.message === "RATE_LIMIT") {
+      msgEl.innerHTML = `<div class="msg msg-err">Limite de requisições da brapi atingido (429). Tente novamente mais tarde. (${ok}/${allTickers.length} atualizados antes do limite)</div>`;
+    } else {
+      msgEl.innerHTML = `<div class="msg msg-err">Não consegui conectar.${detail} (${ok}/${allTickers.length} atualizados antes da falha)</div>`;
+    }
+    saveState(); render();
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalLabel;
+}
+
+document.getElementById("updateQuotesBtn").addEventListener("click", updateAllQuotes);
+
+// init
+document.getElementById("fDate").valueAsDate = new Date();
+document.getElementById("brapiToken").value = getApiKey();
+updateBrapiConfigVisibility();
+loadState();
+render();
+</script>
+</body>
+</html>
